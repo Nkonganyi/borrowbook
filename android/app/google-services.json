@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "892029209526",
+    "project_id": "borrowbook-ebac9",
+    "storage_bucket": "borrowbook-ebac9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:892029209526:android:6d39d1eaa6de092c74cf17",
+        "android_client_info": {
+          "package_name": "com.example.borrowbook"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBwV2BZjIIO9Zc1o4BBLxeWFEVrWOPFTKU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
