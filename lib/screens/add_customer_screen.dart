@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/customer_service.dart';
+import '../utils/responsive.dart';
 
 class AddCustomerScreen extends StatefulWidget {
   const AddCustomerScreen({super.key});
@@ -54,7 +55,8 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
       appBar: AppBar(title: const Text("Add Customer")),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-        child: Form(
+        child: ResponsiveFormWidth(
+          child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -108,6 +110,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

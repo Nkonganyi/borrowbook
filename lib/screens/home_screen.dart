@@ -9,6 +9,7 @@ import '../widgets/offline_banner.dart';
 import '../widgets/animated_money.dart';
 import '../widgets/receipt_tear_divider.dart';
 import '../widgets/fade_in_item.dart';
+import '../utils/responsive.dart';
 import 'add_customer_screen.dart';
 import 'customer_details_screen.dart';
 import 'dashboard_screen.dart';
@@ -31,6 +32,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String searchText = '';
   String userName = 'Loading...';
   CustomerFilter activeFilter = CustomerFilter.all;
+  // Only used on wide (tablet/desktop) layouts, for the master-detail pane.
+  Map? selectedCustomer;
 
   @override
   void initState() {
@@ -176,70 +179,47 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _openCustomer(BuildContext context, Map customer, bool wide) async {
+    if (wide) {
+      setState(() => selectedCustomer = customer);
+      return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => CustomerDetailsScreen(customer: customer)),
+    );
+    loadData();
+  }
+
+  Future<void> _addCustomer() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddCustomerScreen(),
+      ),
+    );
+    if (result == true || result == 'queued') {
+      loadData();
+    }
+    if (result == 'queued' && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No internet — customer saved on this device and will sync automatically once you're back online."),
+          duration: Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final finance = Theme.of(context).financeColors;
+    final wide = Responsive.isWide(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Borrow Book"),
-        actions: [
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const DashboardScreen()),
-            ),
-            icon: const Icon(Icons.bar_chart_rounded),
-            tooltip: 'Dashboard',
-          ),
-          IconButton(onPressed: logout, icon: const Icon(Icons.logout_rounded)),
-        ],
-      ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            UserAccountsDrawerHeader(
-              decoration: BoxDecoration(color: scheme.primary),
-              accountName: Text(userName, style: const TextStyle(fontWeight: FontWeight.w700)),
-              accountEmail: Text(AuthService().currentUser?.email ?? ''),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: scheme.onPrimary,
-                child: Icon(Icons.person, size: 40, color: scheme.primary),
-              ),
-              onDetailsPressed: _showUpdateNameDialog,
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text("Edit Display Name"),
-              subtitle: const Text("Ensure your real name shows on debts"),
-              onTap: () {
-                Navigator.pop(context);
-                _showUpdateNameDialog();
-              },
-            ),
-            ListenableBuilder(
-              listenable: ThemeController.instance,
-              builder: (context, _) {
-                return SwitchListTile(
-                  secondary: const Icon(Icons.dark_mode_outlined),
-                  title: const Text("Dark Mode"),
-                  value: ThemeController.instance.isDark,
-                  onChanged: (v) => ThemeController.instance.toggleDark(v),
-                );
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout_rounded),
-              title: const Text("Logout"),
-              onTap: logout,
-            ),
-          ],
-        ),
-      ),
-      body: Column(
+    final listPane = RefreshIndicator(
+      onRefresh: loadData,
+      child: Column(
         children: [
           const OfflineBanner(),
           Card(
@@ -331,17 +311,22 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 8),
           Expanded(
             child: filteredCustomers.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        customers.isEmpty
-                            ? "No customers yet. Tap + to add the first one."
-                            : "No customers match this search or filter.",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: scheme.onSurfaceVariant),
+                ? ListView(
+                    // Still scrollable (as a plain Column+Center wouldn't be)
+                    // so RefreshIndicator's pull-to-refresh keeps working
+                    // even on an empty list.
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(48),
+                        child: Text(
+                          customers.isEmpty
+                              ? "No customers yet. Tap + to add the first one."
+                              : "No customers match this search or filter.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: scheme.onSurfaceVariant),
+                        ),
                       ),
-                    ),
+                    ],
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(14, 4, 14, 90),
@@ -352,6 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       final overdueDays = overdueDaysMap[customerId];
                       final isOverdue = overdueDays != null;
                       final isOwing = owingCustomerIds.contains(customerId);
+                      final isSelected = wide && selectedCustomer != null && selectedCustomer!['id'] == customerId;
 
                       final accentColor = isOverdue
                           ? finance.overdue
@@ -362,17 +348,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Material(
-                            color: Theme.of(context).cardTheme.color,
+                            color: isSelected
+                                ? scheme.primaryContainer.withOpacity(0.5)
+                                : Theme.of(context).cardTheme.color,
                             borderRadius: BorderRadius.circular(14),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(14),
-                              onTap: () async {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => CustomerDetailsScreen(customer: customer)),
-                                );
-                                loadData();
-                              },
+                              onTap: () => _openCustomer(context, customer, wide),
                               child: Container(
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(14),
@@ -428,28 +410,149 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const AddCustomerScreen(),
-            ),
-          );
-          if (result == true || result == 'queued') {
-            loadData();
-          }
-          if (result == 'queued' && mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("No internet — customer saved on this device and will sync automatically once you're back online."),
-                duration: Duration(seconds: 4),
+    );
+
+    Widget? detailPane;
+    if (wide) {
+      detailPane = selectedCustomer == null
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.menu_book_outlined, size: 40, color: scheme.onSurfaceVariant.withOpacity(0.5)),
+                  const SizedBox(height: 12),
+                  Text(
+                    "Select a customer to see their ledger",
+                    style: TextStyle(color: scheme.onSurfaceVariant),
+                  ),
+                ],
               ),
+            )
+          : CustomerDetailsScreen(
+              // A fresh key per customer forces the detail screen to
+              // re-initialize (reload items/payments) when the selection
+              // changes, instead of reusing stale State for a different
+              // customer's data.
+              key: ValueKey(selectedCustomer!['id']),
+              customer: selectedCustomer!,
             );
-          }
-        },
-        child: const Icon(Icons.add_rounded),
+    }
+
+    return Scaffold(
+      appBar: wide ? null : AppBar(
+        title: const Text("Borrow Book"),
+        actions: [
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DashboardScreen()),
+            ),
+            icon: const Icon(Icons.bar_chart_rounded),
+            tooltip: 'Dashboard',
+          ),
+          IconButton(onPressed: logout, icon: const Icon(Icons.logout_rounded)),
+        ],
       ),
+      drawer: wide ? null : Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            UserAccountsDrawerHeader(
+              decoration: BoxDecoration(color: scheme.primary),
+              accountName: Text(userName, style: const TextStyle(fontWeight: FontWeight.w700)),
+              accountEmail: Text(AuthService().currentUser?.email ?? ''),
+              currentAccountPicture: CircleAvatar(
+                backgroundColor: scheme.onPrimary,
+                child: Icon(Icons.person, size: 40, color: scheme.primary),
+              ),
+              onDetailsPressed: _showUpdateNameDialog,
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text("Edit Display Name"),
+              subtitle: const Text("Ensure your real name shows on debts"),
+              onTap: () {
+                Navigator.pop(context);
+                _showUpdateNameDialog();
+              },
+            ),
+            ListenableBuilder(
+              listenable: ThemeController.instance,
+              builder: (context, _) {
+                return SwitchListTile(
+                  secondary: const Icon(Icons.dark_mode_outlined),
+                  title: const Text("Dark Mode"),
+                  value: ThemeController.instance.isDark,
+                  onChanged: (v) => ThemeController.instance.toggleDark(v),
+                );
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout_rounded),
+              title: const Text("Logout"),
+              onTap: logout,
+            ),
+          ],
+        ),
+      ),
+      body: wide
+          ? SafeArea(
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 400,
+                    child: Column(
+                      children: [
+                        AppBar(
+                          title: const Text("Borrow Book"),
+                          automaticallyImplyLeading: false,
+                          actions: [
+                            IconButton(
+                              onPressed: _addCustomer,
+                              icon: const Icon(Icons.person_add_alt_1_rounded),
+                              tooltip: 'Add customer',
+                            ),
+                            IconButton(
+                              onPressed: _showUpdateNameDialog,
+                              icon: const Icon(Icons.edit_outlined),
+                              tooltip: 'Edit display name',
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const DashboardScreen()),
+                              ),
+                              icon: const Icon(Icons.bar_chart_rounded),
+                              tooltip: 'Dashboard',
+                            ),
+                            ListenableBuilder(
+                              listenable: ThemeController.instance,
+                              builder: (context, _) => IconButton(
+                                onPressed: () => ThemeController.instance.toggleDark(!ThemeController.instance.isDark),
+                                icon: Icon(ThemeController.instance.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+                                tooltip: 'Toggle dark mode',
+                              ),
+                            ),
+                            IconButton(onPressed: logout, icon: const Icon(Icons.logout_rounded)),
+                          ],
+                        ),
+                        Expanded(child: listPane),
+                      ],
+                    ),
+                  ),
+                  VerticalDivider(width: 1, color: scheme.outlineVariant.withOpacity(0.5)),
+                  Expanded(child: detailPane!),
+                ],
+              ),
+            )
+          : listPane,
+      floatingActionButton: wide
+          ? null
+          : FloatingActionButton(
+              onPressed: _addCustomer,
+              child: const Icon(Icons.add_rounded),
+            ),
     );
   }
 }

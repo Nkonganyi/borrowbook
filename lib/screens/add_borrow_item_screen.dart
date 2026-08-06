@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/borrow_service.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/responsive.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AddBorrowItemScreen extends StatefulWidget {
@@ -154,7 +155,9 @@ class _AddBorrowItemScreenState extends State<AddBorrowItemScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text("Add Items \u2014 ${widget.customerName}")),
-      body: Column(
+      body: ResponsiveFormWidth(
+        maxWidth: 640,
+        child: Column(
         children: [
           Expanded(
             child: ListView.builder(
@@ -254,6 +257,7 @@ class _AddBorrowItemScreenState extends State<AddBorrowItemScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
