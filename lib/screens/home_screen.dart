@@ -6,6 +6,7 @@ import '../services/borrow_service.dart';
 import '../widgets/offline_banner.dart';
 import 'add_customer_screen.dart';
 import 'customer_details_screen.dart';
+import 'dashboard_screen.dart';
 import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -181,6 +182,14 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text("Borrow Book"),
         actions: [
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DashboardScreen()),
+            ),
+            icon: const Icon(Icons.bar_chart),
+            tooltip: 'Dashboard',
+          ),
           IconButton(onPressed: logout, icon: const Icon(Icons.logout)),
         ],
       ),
