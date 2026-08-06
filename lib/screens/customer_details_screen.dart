@@ -3,7 +3,11 @@ import '../services/borrow_service.dart';
 import '../services/auth_service.dart';
 import '../services/payment_service.dart';
 import '../models/payment_model.dart';
+import '../theme/app_theme.dart';
 import '../widgets/offline_banner.dart';
+import '../widgets/animated_money.dart';
+import '../widgets/receipt_tear_divider.dart';
+import '../widgets/fade_in_item.dart';
 import 'add_borrow_item_screen.dart';
 
 class CustomerDetailsScreen extends StatefulWidget {
@@ -112,11 +116,11 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
         'January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December'
       ];
-      
+
       String day = date.day.toString().padLeft(2, '0');
       String month = months[date.month - 1];
       String year = date.year.toString();
-      
+
       int hour = date.hour;
       String period = 'AM';
       if (hour >= 12) {
@@ -124,9 +128,9 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
         if (hour > 12) hour -= 12;
       }
       if (hour == 0) hour = 12;
-      
+
       String minute = date.minute.toString().padLeft(2, '0');
-      
+
       return "$day $month $year, $hour:$minute $period";
     } catch (e) {
       return dateStr;
@@ -138,6 +142,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
     final priceController = TextEditingController(text: formatCurrency(double.parse(item['price'].toString())));
     final reasonController = TextEditingController();
     final bool hasPayments = _paidForItem(item['id']) > 0;
+    final finance = Theme.of(context).financeColors;
 
     showDialog(
       context: context,
@@ -156,6 +161,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                       labelText: "Item Name",
                     ),
                   ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: priceController,
                     keyboardType: TextInputType.number,
@@ -168,7 +174,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                     Text(
                       "This item already has a payment recorded against it. "
                       "Please explain why it's being edited.",
-                      style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                      style: TextStyle(fontSize: 12, color: finance.partial),
                     ),
                     const SizedBox(height: 8),
                     TextField(
@@ -186,7 +192,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                   onPressed: () => Navigator.pop(context),
                   child: const Text("Cancel"),
                 ),
-                ElevatedButton(
+                FilledButton(
                   onPressed: () async {
                     if (hasPayments && reasonController.text.trim().isEmpty) {
                       setDialogState(() => reasonError = "A reason is required");
@@ -230,6 +236,8 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
 
   void _showDeleteDialog(Map item, bool hasPayments) {
     final reasonController = TextEditingController();
+    final finance = Theme.of(context).financeColors;
+    final errorColor = Theme.of(context).colorScheme.error;
 
     showDialog(
       context: context,
@@ -249,7 +257,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                     Text(
                       "This item already has a payment recorded against it. "
                       "The payment history stays on record either way, but please explain why the item is being deleted.",
-                      style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                      style: TextStyle(fontSize: 12, color: finance.partial),
                     ),
                     const SizedBox(height: 8),
                     TextField(
@@ -267,8 +275,8 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                   onPressed: () => Navigator.pop(context),
                   child: const Text("Cancel"),
                 ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: errorColor),
                   onPressed: () async {
                     if (hasPayments && reasonController.text.trim().isEmpty) {
                       setDialogState(() => reasonError = "A reason is required");
@@ -298,7 +306,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                       );
                     }
                   },
-                  child: const Text("Delete", style: TextStyle(color: Colors.white)),
+                  child: const Text("Delete"),
                 ),
               ],
             );
@@ -330,7 +338,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                 children: [
                   Text(
                     "Balance: ${formatCurrency(remaining)} FCFA",
-                    style: const TextStyle(color: Colors.grey),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -361,7 +369,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                   onPressed: () => Navigator.pop(context),
                   child: const Text("Cancel"),
                 ),
-                ElevatedButton(
+                FilledButton(
                   onPressed: () async {
                     final amount = double.tryParse(amountController.text);
                     if (amount == null || amount <= 0) return;
@@ -412,14 +420,16 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
       itemName = match.first['item_name'];
     }
 
+    final finance = Theme.of(context).financeColors;
+
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: Colors.green.shade50,
-        child: const Icon(Icons.payments, color: Colors.green, size: 20),
+        backgroundColor: finance.paid.withOpacity(0.14),
+        child: Icon(Icons.payments_rounded, color: finance.paid, size: 20),
       ),
       title: Text(
         "${formatCurrency(payment.amount)} FCFA",
-        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+        style: moneyStyle(size: 16, color: finance.paid),
       ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -436,7 +446,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
             ),
           Text(
             formatDate(payment.createdAt.toIso8601String()),
-            style: const TextStyle(fontSize: 11, color: Colors.grey),
+            style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -445,6 +455,9 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final finance = Theme.of(context).financeColors;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.customer['name'] ?? 'Customer Details'),
@@ -460,40 +473,49 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
         children: [
           const OfflineBanner(),
           Card(
-            margin: const EdgeInsets.all(12),
+            margin: const EdgeInsets.fromLTRB(14, 14, 14, 0),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Location: ${widget.customer['location'] ?? 'N/A'}"),
-                  const SizedBox(height: 4),
-                  Text("Notes: ${widget.customer['notes'] ?? 'No notes'}"),
-                  const Divider(height: 24),
+                  if ((widget.customer['location'] ?? '').toString().isNotEmpty)
+                    Row(
+                      children: [
+                        Icon(Icons.location_on_outlined, size: 14, color: scheme.onSurfaceVariant),
+                        const SizedBox(width: 4),
+                        Text(widget.customer['location'], style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
+                      ],
+                    ),
+                  if ((widget.customer['notes'] ?? '').toString().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.customer['notes'],
+                      style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant, fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text("Total Borrowed", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                          Text(
-                            "${formatCurrency(totalDebt)} FCFA",
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
+                          Text("TOTAL BORROWED", style: eyebrowStyle(scheme.onSurfaceVariant)),
+                          const SizedBox(height: 4),
+                          AnimatedMoney(value: totalDebt, size: 16, color: scheme.onSurface),
                         ],
                       ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          const Text("Balance Owed", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                          Text(
-                            "${formatCurrency(remainingDebt)} FCFA",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 20,
-                              color: remainingDebt > 0 ? Colors.red : Colors.green,
-                            ),
+                          Text("BALANCE OWED", style: eyebrowStyle(scheme.onSurfaceVariant)),
+                          const SizedBox(height: 4),
+                          AnimatedMoney(
+                            value: remainingDebt,
+                            size: 24,
+                            color: remainingDebt > 0 ? finance.overdue : finance.paid,
                           ),
                         ],
                       ),
@@ -503,136 +525,146 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: ReceiptTearDivider(color: scheme.outlineVariant, notchRadius: 4),
+          ),
+          const SizedBox(height: 4),
           Expanded(
             child: TabBarView(
               controller: _tabController,
               children: [
-                // --- Debts tab (existing item list, unchanged behavior) ---
+                // --- Debts tab ---
                 items.isEmpty
-                    ? const Center(child: Text("No items borrowed yet"))
-                    : ListView.separated(
-                  itemCount: items.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    final double price = double.parse(item['price'].toString());
-                    final double paidSoFar = _paidForItem(item['id']);
-                    // Trust the local ledger over the server flag: if a
-                    // payment was just recorded offline, is_paid won't be
-                    // updated by the DB trigger until it syncs, but we
-                    // already know the balance is covered.
-                    final bool isPaid = item['is_paid'] == true || paidSoFar >= price;
-                    final bool isPartiallyPaid = !isPaid && paidSoFar > 0;
+                    ? Center(
+                        child: Text("No items borrowed yet", style: TextStyle(color: scheme.onSurfaceVariant)),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 90),
+                        itemCount: items.length,
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          final double price = double.parse(item['price'].toString());
+                          final double paidSoFar = _paidForItem(item['id']);
+                          // Trust the local ledger over the server flag: if a
+                          // payment was just recorded offline, is_paid won't be
+                          // updated by the DB trigger until it syncs, but we
+                          // already know the balance is covered.
+                          final bool isPaid = item['is_paid'] == true || paidSoFar >= price;
+                          final bool isPartiallyPaid = !isPaid && paidSoFar > 0;
 
-                    final createdAt = DateTime.parse(item['created_at']);
-                    final difference = DateTime.now().difference(createdAt).inDays;
-                    final bool isOverdue = !isPaid && difference >= 7;
+                          final createdAt = DateTime.parse(item['created_at']);
+                          final difference = DateTime.now().difference(createdAt).inDays;
+                          final bool isOverdue = !isPaid && difference >= 7;
 
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      title: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              "${item['item_name']} - ${formatCurrency(double.parse(item['price'].toString()))} FCFA",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                decoration: isPaid ? TextDecoration.lineThrough : null,
-                                color: isPaid ? Colors.grey : (isOverdue ? Colors.red : null),
+                          final accentColor = isPaid
+                              ? finance.paid
+                              : (isOverdue ? finance.overdue : (isPartiallyPaid ? finance.partial : scheme.primary));
+
+                          return FadeInItem(
+                            index: index,
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).cardTheme.color,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border(left: BorderSide(color: accentColor, width: 4)),
+                              ),
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                title: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item['item_name'] ?? '',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          decoration: isPaid ? TextDecoration.lineThrough : null,
+                                          color: isPaid ? scheme.onSurfaceVariant : scheme.onSurface,
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      "${formatCurrency(price)} FCFA",
+                                      style: moneyStyle(size: 14, color: isPaid ? scheme.onSurfaceVariant : scheme.onSurface, weight: FontWeight.w700),
+                                    ),
+                                  ],
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      "Added by ${item['added_by'] ?? 'Unknown'} \u2022 ${formatDate(item['created_at'])}",
+                                      style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant),
+                                    ),
+                                    if (isOverdue) ...[
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        "$difference days overdue",
+                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: finance.overdue),
+                                      ),
+                                    ],
+                                    if (isPartiallyPaid) ...[
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        "Paid ${formatCurrency(paidSoFar)} of ${formatCurrency(price)} \u2014 ${formatCurrency(price - paidSoFar)} remaining",
+                                        style: TextStyle(fontSize: 12, color: finance.partial, fontWeight: FontWeight.w700),
+                                      ),
+                                    ],
+                                    if (isPaid) ...[
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        "Paid to ${item['paid_by'] ?? 'Unknown'} \u2022 ${formatDate(item['paid_at'])}",
+                                        style: TextStyle(fontSize: 12, color: finance.paid, fontWeight: FontWeight.w600),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                trailing: PopupMenuButton(
+                                  onSelected: (value) async {
+                                    if (value == 'edit') {
+                                      _showEditDialog(item);
+                                    }
+                                    if (value == 'delete') {
+                                      _showDeleteDialog(item, paidSoFar > 0);
+                                    }
+                                    if (value == 'record_payment') {
+                                      _showRecordPaymentDialog(item);
+                                    }
+                                  },
+                                  itemBuilder: (context) => [
+                                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                    if (!isPaid)
+                                      PopupMenuItem(
+                                        value: 'record_payment',
+                                        child: Text(isPartiallyPaid ? 'Record Another Payment' : 'Record Payment'),
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                          if (isOverdue) ...[
-                            const SizedBox(width: 8),
-                            Text(
-                              "\u2014 OVERDUE ($difference days)",
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ]
-                        ],
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 4),
-                          Text(
-                            "Added by: ${item['added_by'] ?? 'Unknown'}",
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          Text(
-                            formatDate(item['created_at']),
-                            style: const TextStyle(fontSize: 11, color: Colors.grey),
-                          ),
-                          if (isPartiallyPaid) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              "Paid ${formatCurrency(paidSoFar)} of ${formatCurrency(price)} FCFA \u2014 ${formatCurrency(price - paidSoFar)} remaining",
-                              style: const TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                          if (isPaid) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              "Paid to: ${item['paid_by'] ?? 'Unknown'}",
-                              style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
-                            ),
-                            Text(
-                              formatDate(item['paid_at']),
-                              style: const TextStyle(fontSize: 11, color: Colors.green),
-                            ),
-                          ],
-                        ],
-                      ),
-                      trailing: PopupMenuButton(
-                        onSelected: (value) async {
-                          if (value == 'edit') {
-                            _showEditDialog(item);
-                          }
-                          if (value == 'delete') {
-                            _showDeleteDialog(item, paidSoFar > 0);
-                          }
-                          if (value == 'record_payment') {
-                            _showRecordPaymentDialog(item);
-                          }
+                          );
                         },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Text('Edit'),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Text('Delete'),
-                          ),
-                          if (!isPaid)
-                            PopupMenuItem(
-                              value: 'record_payment',
-                              child: Text(isPartiallyPaid ? 'Record Another Payment' : 'Record Payment'),
-                            ),
-                        ],
                       ),
-                    );
-                  },
-                ),
-                // --- Payment History tab (new, reads from the payments ledger) ---
+                // --- Payment History tab ---
                 payments.isEmpty
-                    ? const Center(child: Text("No payments recorded yet"))
+                    ? Center(
+                        child: Text("No payments recorded yet", style: TextStyle(color: scheme.onSurfaceVariant)),
+                      )
                     : ListView.separated(
-                  itemCount: payments.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
-                  itemBuilder: (context, index) => _buildPaymentTile(payments[index]),
-                ),
+                        padding: const EdgeInsets.only(bottom: 90),
+                        itemCount: payments.length,
+                        separatorBuilder: (context, index) => const Divider(height: 1),
+                        itemBuilder: (context, index) => _buildPaymentTile(payments[index]),
+                      ),
               ],
             ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.add),
         onPressed: () async {
           final result = await Navigator.push(
             context,
@@ -656,6 +688,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
             );
           }
         },
+        child: const Icon(Icons.add_rounded),
       ),
     );
   }

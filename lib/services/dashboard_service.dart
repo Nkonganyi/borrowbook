@@ -29,7 +29,6 @@ class DashboardService {
       final paidByItem = _paidByItem(payments);
 
       double outstandingDebt = 0;
-      int overdueCount = 0;
       final now = DateTime.now();
       final customersOwingIds = <String>{};
       final overdueCustomersIds = <String>{};
@@ -46,7 +45,6 @@ class DashboardService {
           final createdAt = DateTime.parse(item['created_at']);
           final difference = now.difference(createdAt).inDays;
           if (difference >= 7) {
-            overdueCount++;
             overdueCustomersIds.add(item['customer_id']);
           }
         }
@@ -140,14 +138,14 @@ class DashboardService {
 
       // --- Collected this week / month ---
       final weekAgo = now.subtract(const Duration(days: 7));
-      final monthAgo = DateTime(now.year, now.month - 1, now.day);
+      final monthAgo = now.subtract(const Duration(days: 30));
       double collectedThisWeek = 0;
       double collectedThisMonth = 0;
       for (var p in payments) {
         final createdAt = DateTime.parse(p['created_at']);
         final amount = double.parse(p['amount'].toString());
-        if (createdAt.isAfter(weekAgo)) collectedThisWeek += amount;
-        if (createdAt.isAfter(monthAgo)) collectedThisMonth += amount;
+        if (!createdAt.isBefore(weekAgo)) collectedThisWeek += amount;
+        if (!createdAt.isBefore(monthAgo)) collectedThisMonth += amount;
       }
 
       // --- Average days to fully pay off an item (only fully-paid items) ---
@@ -171,7 +169,7 @@ class DashboardService {
         double borrowed = 0;
         for (var item in borrowItems) {
           final createdAt = DateTime.parse(item['created_at']);
-          if (createdAt.isAfter(weekStart) && createdAt.isBefore(weekEnd)) {
+          if (!createdAt.isBefore(weekStart) && createdAt.isBefore(weekEnd)) {
             borrowed += double.parse(item['price'].toString());
           }
         }
@@ -179,7 +177,7 @@ class DashboardService {
         double collected = 0;
         for (var p in payments) {
           final createdAt = DateTime.parse(p['created_at']);
-          if (createdAt.isAfter(weekStart) && createdAt.isBefore(weekEnd)) {
+          if (!createdAt.isBefore(weekStart) && createdAt.isBefore(weekEnd)) {
             collected += double.parse(p['amount'].toString());
           }
         }

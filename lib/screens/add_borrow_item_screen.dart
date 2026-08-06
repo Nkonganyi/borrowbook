@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/borrow_service.dart';
 import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AddBorrowItemScreen extends StatefulWidget {
@@ -49,7 +50,26 @@ class _AddBorrowItemScreenState extends State<AddBorrowItemScreen> {
       setState(() {
         _items.add(_ItemEntry());
       });
+    } else {
+      setState(() {}); // keep the running total live even without adding a row
     }
+  }
+
+  void _removeItem(int index) {
+    if (_items.length <= 1) return;
+    setState(() {
+      final removed = _items.removeAt(index);
+      removed.nameController.dispose();
+      removed.priceController.dispose();
+    });
+  }
+
+  double get _runningTotal {
+    double total = 0;
+    for (var item in _items) {
+      total += double.tryParse(item.priceController.text.trim()) ?? 0;
+    }
+    return total;
   }
 
   Future<void> saveItems() async {
@@ -130,60 +150,110 @@ class _AddBorrowItemScreenState extends State<AddBorrowItemScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(title: Text("Add Items for ${widget.customerName}")),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView.builder(
-                itemCount: _items.length,
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 15),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextField(
-                            controller: _items[index].nameController,
-                            decoration: const InputDecoration(labelText: "Item Name"),
-                            onChanged: (_) => _addItemIfLastNotEmpty(),
-                          ),
+      appBar: AppBar(title: Text("Add Items \u2014 ${widget.customerName}")),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              itemCount: _items.length,
+              itemBuilder: (context, index) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: scheme.outlineVariant.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      CircleAvatar(
+                        radius: 13,
+                        backgroundColor: scheme.primaryContainer,
+                        child: Text(
+                          "${index + 1}",
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: scheme.onPrimaryContainer),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          flex: 1,
-                          child: TextField(
-                            controller: _items[index].priceController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: "Price"),
-                            onChanged: (_) => _addItemIfLastNotEmpty(),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          controller: _items[index].nameController,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: const InputDecoration(
+                            labelText: "Item",
+                            border: InputBorder.none,
+                            isDense: true,
                           ),
+                          onChanged: (_) => _addItemIfLastNotEmpty(),
                         ),
-                      ],
+                      ),
+                      SizedBox(
+                        width: 100,
+                        child: TextField(
+                          controller: _items[index].priceController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          textAlign: TextAlign.right,
+                          decoration: const InputDecoration(
+                            labelText: "Price",
+                            border: InputBorder.none,
+                            isDense: true,
+                          ),
+                          onChanged: (_) => _addItemIfLastNotEmpty(),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close_rounded, size: 18, color: scheme.onSurfaceVariant),
+                        onPressed: _items.length > 1 ? () => _removeItem(index) : null,
+                        tooltip: 'Remove',
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest.withOpacity(0.4),
+              border: Border(top: BorderSide(color: scheme.outlineVariant.withOpacity(0.4))),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("TOTAL", style: eyebrowStyle(scheme.onSurfaceVariant)),
+                    Text(
+                      "${_runningTotal == _runningTotal.toInt() ? _runningTotal.toInt() : _runningTotal} FCFA",
+                      style: moneyStyle(size: 20, color: scheme.onSurface),
                     ),
-                  );
-                },
-              ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: loading ? null : saveItems,
+                    child: loading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                          )
+                        : const Text("Save and Notify"),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: loading ? null : saveItems,
-                child: loading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text("Save and Notify"),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

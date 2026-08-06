@@ -5,107 +5,109 @@ class AddCustomerScreen extends StatefulWidget {
   const AddCustomerScreen({super.key});
 
   @override
-  State<AddCustomerScreen> createState() =>
-      _AddCustomerScreenState();
+  State<AddCustomerScreen> createState() => _AddCustomerScreenState();
 }
 
-class _AddCustomerScreenState
-    extends State<AddCustomerScreen> {
-
+class _AddCustomerScreenState extends State<AddCustomerScreen> {
   final nameController = TextEditingController();
   final phoneController = TextEditingController();
   final locationController = TextEditingController();
   final notesController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
 
   bool loading = false;
 
   Future<void> saveCustomer() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
     try {
       setState(() {
         loading = true;
       });
 
       final queuedOffline = await CustomerService().addCustomer(
-        name: nameController.text,
-        phone: phoneController.text,
-        location: locationController.text,
-        notes: notesController.text,
+        name: nameController.text.trim(),
+        phone: phoneController.text.trim(),
+        location: locationController.text.trim(),
+        notes: notesController.text.trim(),
       );
 
       if (!mounted) return;
 
       Navigator.pop(context, queuedOffline ? 'queued' : true);
-
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-        ),
+        SnackBar(content: Text(e.toString())),
       );
     }
 
-    setState(() {
-      loading = false;
-    });
+    if (mounted) {
+      setState(() {
+        loading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Add Customer"),
-      ),
-
+      appBar: AppBar(title: const Text("Add Customer")),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-
-        child: Column(
-          children: [
-
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: "Customer Name",
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: nameController,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: "Customer Name",
+                  prefixIcon: Icon(Icons.person_outline_rounded),
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter the customer\'s name' : null,
               ),
-            ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: phoneController,
-              decoration: const InputDecoration(
-                labelText: "Phone Number",
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: "Phone Number",
+                  prefixIcon: Icon(Icons.phone_outlined),
+                ),
               ),
-            ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: locationController,
-              decoration: const InputDecoration(
-                labelText: "Location",
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: locationController,
+                decoration: const InputDecoration(
+                  labelText: "Location",
+                  prefixIcon: Icon(Icons.location_on_outlined),
+                ),
               ),
-            ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: notesController,
-              decoration: const InputDecoration(
-                labelText: "Notes",
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: notesController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: "Notes",
+                  prefixIcon: Icon(Icons.notes_rounded),
+                  alignLabelWithHint: true,
+                ),
               ),
-            ),
-
-            const SizedBox(height: 30),
-
-            ElevatedButton(
-              onPressed: loading ? null : saveCustomer,
-              child: loading
-                  ? const CircularProgressIndicator()
-                  : const Text("Save Customer"),
-            )
-          ],
+              const SizedBox(height: 28),
+              FilledButton(
+                onPressed: loading ? null : saveCustomer,
+                child: loading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                      )
+                    : const Text("Save Customer"),
+              ),
+            ],
+          ),
         ),
       ),
     );

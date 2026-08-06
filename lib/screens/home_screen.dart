@@ -3,7 +3,12 @@ import '../services/auth_service.dart';
 import '../services/customer_service.dart';
 import '../services/dashboard_service.dart';
 import '../services/borrow_service.dart';
+import '../theme/app_theme.dart';
+import '../theme/theme_controller.dart';
 import '../widgets/offline_banner.dart';
+import '../widgets/animated_money.dart';
+import '../widgets/receipt_tear_divider.dart';
+import '../widgets/fade_in_item.dart';
 import 'add_customer_screen.dart';
 import 'customer_details_screen.dart';
 import 'dashboard_screen.dart';
@@ -167,17 +172,15 @@ class _HomeScreenState extends State<HomeScreen> {
       label: Text(label),
       selected: isSelected,
       onSelected: (_) => setState(() => activeFilter = filter),
-      selectedColor: Colors.blue.shade100,
-      checkmarkColor: Colors.blue.shade900,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.blue.shade900 : null,
-        fontWeight: isSelected ? FontWeight.bold : null,
-      ),
+      showCheckmark: false,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final finance = Theme.of(context).financeColors;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Borrow Book"),
@@ -187,10 +190,10 @@ class _HomeScreenState extends State<HomeScreen> {
               context,
               MaterialPageRoute(builder: (_) => const DashboardScreen()),
             ),
-            icon: const Icon(Icons.bar_chart),
+            icon: const Icon(Icons.bar_chart_rounded),
             tooltip: 'Dashboard',
           ),
-          IconButton(onPressed: logout, icon: const Icon(Icons.logout)),
+          IconButton(onPressed: logout, icon: const Icon(Icons.logout_rounded)),
         ],
       ),
       drawer: Drawer(
@@ -198,16 +201,17 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: EdgeInsets.zero,
           children: [
             UserAccountsDrawerHeader(
-              accountName: Text(userName),
+              decoration: BoxDecoration(color: scheme.primary),
+              accountName: Text(userName, style: const TextStyle(fontWeight: FontWeight.w700)),
               accountEmail: Text(AuthService().currentUser?.email ?? ''),
-              currentAccountPicture: const CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Icon(Icons.person, size: 40, color: Colors.blue),
+              currentAccountPicture: CircleAvatar(
+                backgroundColor: scheme.onPrimary,
+                child: Icon(Icons.person, size: 40, color: scheme.primary),
               ),
               onDetailsPressed: _showUpdateNameDialog,
             ),
             ListTile(
-              leading: const Icon(Icons.edit),
+              leading: const Icon(Icons.edit_outlined),
               title: const Text("Edit Display Name"),
               subtitle: const Text("Ensure your real name shows on debts"),
               onTap: () {
@@ -215,9 +219,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 _showUpdateNameDialog();
               },
             ),
+            ListenableBuilder(
+              listenable: ThemeController.instance,
+              builder: (context, _) {
+                return SwitchListTile(
+                  secondary: const Icon(Icons.dark_mode_outlined),
+                  title: const Text("Dark Mode"),
+                  value: ThemeController.instance.isDark,
+                  onChanged: (v) => ThemeController.instance.toggleDark(v),
+                );
+              },
+            ),
             const Divider(),
             ListTile(
-              leading: const Icon(Icons.logout),
+              leading: const Icon(Icons.logout_rounded),
               title: const Text("Logout"),
               onTap: logout,
             ),
@@ -228,57 +243,75 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           const OfflineBanner(),
           Card(
-            margin: const EdgeInsets.all(10),
-            elevation: 4,
+            margin: const EdgeInsets.fromLTRB(14, 14, 14, 0),
             child: Padding(
-              padding: const EdgeInsets.all(15),
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("Total Customers: ${stats['totalCustomers'] ?? 0}"),
-                      Text("Owing: ${stats['customersOwing'] ?? 0}"),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("OUTSTANDING DEBT", style: eyebrowStyle(scheme.onSurfaceVariant)),
+                          const SizedBox(height: 4),
+                          AnimatedMoney(
+                            value: (double.tryParse(stats['outstandingDebt']?.toString() ?? '0') ?? 0),
+                            size: 26,
+                            color: scheme.onSurface,
+                          ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text("${stats['totalCustomers'] ?? 0}", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: scheme.onSurface)),
+                          Text("customers", style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                        ],
+                      ),
                     ],
                   ),
-                  const Divider(height: 20),
-                  Text(
-                    "Outstanding Debt: ${formatCurrency(stats['outstandingDebt'])} FCFA",
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _StatPill(
+                        icon: Icons.people_outline,
+                        label: "${stats['customersOwing'] ?? 0} owing",
+                        color: finance.partial,
+                      ),
+                      if ((stats['overdueCustomers'] ?? 0) > 0)
+                        _StatPill(
+                          icon: Icons.warning_amber_rounded,
+                          label: "${stats['overdueCustomers']} overdue",
+                          color: finance.overdue,
+                        ),
+                    ],
                   ),
-                  if ((stats['overdueCustomers'] ?? 0) > 0) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.shade200),
-                      ),
-                      child: Text(
-                        "Overdue Customers: ${stats['overdueCustomers']}",
-                        style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: ReceiptTearDivider(color: scheme.outlineVariant, notchRadius: 4),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
             child: TextField(
               decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
+                prefixIcon: Icon(Icons.search_rounded),
                 hintText: "Search by name or phone...",
-                border: OutlineInputBorder(),
               ),
               onChanged: (value) => setState(() => searchText = value.toLowerCase()),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             child: SizedBox(
               height: 36,
               child: ListView(
@@ -295,62 +328,107 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Expanded(
             child: filteredCustomers.isEmpty
-                ? const Center(child: Text("No customers match this search/filter"))
-                : ListView.builder(
-              itemCount: filteredCustomers.length,
-              itemBuilder: (context, index) {
-                final customer = filteredCustomers[index];
-                final customerId = customer['id'];
-                final overdueDays = overdueDaysMap[customerId];
-                final isOverdue = overdueDays != null;
-
-                return ListTile(
-                  title: Row(
-                    children: [
-                      Text(
-                        customer['name'],
-                        style: TextStyle(
-                          color: isOverdue ? Colors.red : null,
-                          fontWeight: isOverdue ? FontWeight.bold : null,
-                        ),
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        customers.isEmpty
+                            ? "No customers yet. Tap + to add the first one."
+                            : "No customers match this search or filter.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: scheme.onSurfaceVariant),
                       ),
-                      if (customer['_pendingSync'] == true) ...[
-                        const SizedBox(width: 6),
-                        Icon(Icons.sync, size: 14, color: Colors.orange.shade700),
-                      ],
-                      if (isOverdue) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          "— OVERDUE ($overdueDays days)",
-                          style: const TextStyle(
-                            color: Colors.red,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(14, 4, 14, 90),
+                    itemCount: filteredCustomers.length,
+                    itemBuilder: (context, index) {
+                      final customer = filteredCustomers[index];
+                      final customerId = customer['id'];
+                      final overdueDays = overdueDaysMap[customerId];
+                      final isOverdue = overdueDays != null;
+                      final isOwing = owingCustomerIds.contains(customerId);
+
+                      final accentColor = isOverdue
+                          ? finance.overdue
+                          : (isOwing ? finance.partial : finance.paid);
+
+                      return FadeInItem(
+                        index: index,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Material(
+                            color: Theme.of(context).cardTheme.color,
+                            borderRadius: BorderRadius.circular(14),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => CustomerDetailsScreen(customer: customer)),
+                                );
+                                loadData();
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border(left: BorderSide(color: accentColor, width: 4)),
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  customer['name'] ?? '',
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                                                ),
+                                              ),
+                                              if (customer['_pendingSync'] == true) ...[
+                                                const SizedBox(width: 6),
+                                                Icon(Icons.sync_rounded, size: 14, color: finance.pendingSync),
+                                              ],
+                                            ],
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            customer['location'] ?? 'No location',
+                                            style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
+                                          ),
+                                          if (isOverdue) ...[
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              "$overdueDays days overdue",
+                                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: finance.overdue),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ]
-                    ],
+                      );
+                    },
                   ),
-                  subtitle: Text(customer['location'] ?? 'No location'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => CustomerDetailsScreen(customer: customer)),
-                    );
-                    loadData();
-                  },
-                );
-              },
-            ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.add),
         onPressed: () async {
           final result = await Navigator.push(
             context,
@@ -370,6 +448,35 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
         },
+        child: const Icon(Icons.add_rounded),
+      ),
+    );
+  }
+}
+
+/// Small rounded pill used for the summary card's secondary stats.
+class _StatPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _StatPill({required this.icon, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+        ],
       ),
     );
   }

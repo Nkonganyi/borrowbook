@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/dashboard_service.dart';
+import '../theme/app_theme.dart';
 import '../widgets/offline_banner.dart';
 import 'customer_details_screen.dart';
 
@@ -39,6 +40,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final finance = Theme.of(context).financeColors;
+
     final weeklySeries = (stats['weeklySeries'] as List?) ?? [];
     final topDebtors = (stats['topDebtors'] as List?) ?? [];
     final aging = (stats['aging'] as List?) ?? [];
@@ -63,41 +67,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 : RefreshIndicator(
                     onRefresh: _load,
                     child: ListView(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(16),
                       children: [
-                        _buildStatsGrid(),
-                        const SizedBox(height: 24),
-                        _buildSectionTitle("Last 6 Weeks — Borrowed vs Collected"),
-                        const SizedBox(height: 12),
-                        _buildChart(weeklySeries, maxY),
-                        const SizedBox(height: 8),
-                        _buildLegend(),
-                        const SizedBox(height: 24),
-                        _buildSectionTitle("Top 5 Debtors"),
+                        _buildStatsGrid(finance, scheme),
+                        const SizedBox(height: 28),
+                        _buildSectionTitle("LAST 6 WEEKS \u2014 BORROWED VS COLLECTED", scheme),
+                        const SizedBox(height: 14),
+                        _buildChart(weeklySeries, maxY, finance),
+                        const SizedBox(height: 10),
+                        _buildLegend(finance),
+                        const SizedBox(height: 28),
+                        _buildSectionTitle("TOP 5 DEBTORS", scheme),
                         const SizedBox(height: 8),
                         if (topDebtors.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            child: Text("No outstanding balances \u2014 nice.", style: TextStyle(color: Colors.grey)),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Text("No outstanding balances \u2014 nice.", style: TextStyle(color: scheme.onSurfaceVariant)),
                           )
                         else
-                          ...topDebtors.map((d) => _buildDebtorTile(d, showDays: false)),
-                        const SizedBox(height: 24),
-                        _buildSectionTitle("Who To Chase First"),
-                        const Padding(
-                          padding: EdgeInsets.only(top: 2, bottom: 8),
+                          ...topDebtors.map((d) => _buildDebtorTile(d, showDays: false, finance: finance, scheme: scheme, context: context)),
+                        const SizedBox(height: 28),
+                        _buildSectionTitle("WHO TO CHASE FIRST", scheme),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, bottom: 8),
                           child: Text(
                             "Ranked by balance \u00d7 days overdue \u2014 an old small debt can matter more than a big new one.",
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                           ),
                         ),
                         if (aging.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            child: Text("Nobody is overdue right now.", style: TextStyle(color: Colors.grey)),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Text("Nobody is overdue right now.", style: TextStyle(color: scheme.onSurfaceVariant)),
                           )
                         else
-                          ...aging.map((d) => _buildDebtorTile(d, showDays: true)),
+                          ...aging.map((d) => _buildDebtorTile(d, showDays: true, finance: finance, scheme: scheme, context: context)),
                         const SizedBox(height: 24),
                       ],
                     ),
@@ -108,11 +112,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold));
+  Widget _buildSectionTitle(String title, ColorScheme scheme) {
+    return Text(title, style: eyebrowStyle(scheme.onSurfaceVariant));
   }
 
-  Widget _buildStatsGrid() {
+  Widget _buildStatsGrid(FinanceColors finance, ColorScheme scheme) {
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -121,10 +125,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       crossAxisSpacing: 10,
       childAspectRatio: 1.6,
       children: [
-        _statCard("Collected (Week)", "${_fmt(stats['collectedThisWeek'])} FCFA", Colors.green),
-        _statCard("Collected (Month)", "${_fmt(stats['collectedThisMonth'])} FCFA", Colors.green.shade700),
-        _statCard("Avg Days to Pay", _fmt(stats['avgDaysToPay']), Colors.blue),
-        _statCard("Customers Overdue", "${_countOverdue()}", Colors.red),
+        _statCard("Collected (Week)", "${_fmt(stats['collectedThisWeek'])} FCFA", finance.paid),
+        _statCard("Collected (Month)", "${_fmt(stats['collectedThisMonth'])} FCFA", finance.paid),
+        _statCard("Avg Days to Pay", _fmt(stats['avgDaysToPay']), scheme.primary),
+        _statCard("Customers Overdue", "${_countOverdue()}", finance.overdue),
       ],
     );
   }
@@ -136,30 +140,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _statCard(String label, String value, Color color) {
     return Card(
-      color: color.withOpacity(0.08),
+      color: color.withValues(alpha: 0.08),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
-            ),
+            Text(label, style: eyebrowStyle(color.withValues(alpha: 0.85))),
+            const SizedBox(height: 8),
+            Text(value, style: moneyStyle(size: 18, color: color)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildChart(List weeklySeries, double maxY) {
+  Widget _buildChart(List weeklySeries, double maxY, FinanceColors finance) {
     if (weeklySeries.isEmpty) {
       return const SizedBox(
         height: 180,
-        child: Center(child: Text("No activity yet", style: TextStyle(color: Colors.grey))),
+        child: Center(child: Text("No activity yet")),
       );
     }
 
@@ -181,7 +182,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               sideTitles: SideTitles(
                 showTitles: true,
                 getTitlesWidget: (value, meta) {
-                  final index = value.toInt();
+                  final index = value.round();
                   if (index < 0 || index >= weeklySeries.length) return const SizedBox();
                   return Padding(
                     padding: const EdgeInsets.only(top: 6),
@@ -203,8 +204,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             return BarChartGroupData(
               x: i,
               barRods: [
-                BarChartRodData(toY: borrowed, color: Colors.red.shade300, width: 8, borderRadius: BorderRadius.circular(2)),
-                BarChartRodData(toY: collected, color: Colors.green.shade500, width: 8, borderRadius: BorderRadius.circular(2)),
+                BarChartRodData(toY: borrowed, color: finance.overdue, width: 8, borderRadius: BorderRadius.circular(2)),
+                BarChartRodData(toY: collected, color: finance.paid, width: 8, borderRadius: BorderRadius.circular(2)),
               ],
             );
           }),
@@ -213,13 +214,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildLegend() {
+  Widget _buildLegend(FinanceColors finance) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _legendDot(Colors.red.shade300, "Borrowed"),
+        _legendDot(finance.overdue, "Borrowed"),
         const SizedBox(width: 20),
-        _legendDot(Colors.green.shade500, "Collected"),
+        _legendDot(finance.paid, "Collected"),
       ],
     );
   }
@@ -234,25 +235,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildDebtorTile(dynamic entry, {required bool showDays}) {
+  Widget _buildDebtorTile(
+    dynamic entry, {
+    required bool showDays,
+    required FinanceColors finance,
+    required ColorScheme scheme,
+    required BuildContext context,
+  }) {
     final balance = double.tryParse(entry['balance'].toString()) ?? 0;
     final days = showDays ? (double.tryParse(entry['daysOverdue'].toString()) ?? 0).toInt() : null;
     final customer = entry['customer'] as Map?;
 
-    return Card(
+    final amountColor = days != null && days >= 7 ? finance.overdue : finance.partial;
+
+    return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardTheme.color,
+        borderRadius: BorderRadius.circular(14),
+        border: Border(left: BorderSide(color: amountColor, width: 4)),
+      ),
       child: ListTile(
-        title: Text(entry['name']?.toString() ?? 'Unknown'),
+        title: Text(entry['name']?.toString() ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.w700)),
         subtitle: days != null && days > 0
-            ? Text("$days days since oldest unpaid item", style: const TextStyle(fontSize: 12))
+            ? Text("$days days since oldest unpaid item", style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant))
             : null,
-        trailing: Text(
-          "${_fmt(balance)} FCFA",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: days != null && days >= 7 ? Colors.red : Colors.orange.shade800,
-          ),
-        ),
+        trailing: Text("${_fmt(balance)} FCFA", style: moneyStyle(size: 14, color: amountColor)),
         onTap: customer == null
             ? null
             : () {

@@ -8,6 +8,8 @@ import 'screens/login_screen.dart';
 import 'services/notification_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/offline_queue_service.dart';
+import 'theme/app_theme.dart';
+import 'theme/theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,6 +59,8 @@ Future<void> main() async {
   // previous session and we're opening already-online.
   unawaited(OfflineQueueService().processQueue());
 
+  await ThemeController().init();
+
   runApp(const MyApp());
 }
 
@@ -65,11 +69,19 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Supabase.instance.client.auth.currentSession != null
-          ? const HomeScreen()
-          : const LoginScreen(),
+    return ListenableBuilder(
+      listenable: ThemeController.instance,
+      builder: (context, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: ThemeController.instance.mode,
+          home: Supabase.instance.client.auth.currentSession != null
+              ? const HomeScreen()
+              : const LoginScreen(),
+        );
+      },
     );
   }
 }
