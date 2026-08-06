@@ -22,9 +22,18 @@ class DashboardService {
 
   Future<Map<String, dynamic>> getStats() async {
     try {
-      final customers = await supabase.from('customers').select().timeout(const Duration(seconds: 8));
-      final borrowItems = await supabase.from('borrow_items').select().timeout(const Duration(seconds: 8));
-      final payments = await supabase.from('payments').select('borrow_item_id, amount').timeout(const Duration(seconds: 8));
+      final customers = await supabase
+          .from('customers')
+          .select()
+          .timeout(const Duration(seconds: 8));
+      final borrowItems = await supabase
+          .from('borrow_items')
+          .select()
+          .timeout(const Duration(seconds: 8));
+      final payments = await supabase
+          .from('payments')
+          .select('borrow_item_id, amount')
+          .timeout(const Duration(seconds: 8));
 
       final paidByItem = _paidByItem(payments);
 
@@ -78,12 +87,22 @@ class DashboardService {
   /// report — balance × days overdue, not balance alone.
   Future<Map<String, dynamic>> getExtendedStats() async {
     try {
-      final customers = await supabase.from('customers').select().timeout(const Duration(seconds: 8));
-      final borrowItems = await supabase.from('borrow_items').select().timeout(const Duration(seconds: 8));
-      final payments = await supabase.from('payments').select().timeout(const Duration(seconds: 8));
+      final customers = await supabase
+          .from('customers')
+          .select()
+          .timeout(const Duration(seconds: 8));
+      final borrowItems = await supabase
+          .from('borrow_items')
+          .select()
+          .timeout(const Duration(seconds: 8));
+      final payments = await supabase
+          .from('payments')
+          .select()
+          .timeout(const Duration(seconds: 8));
 
       final customerLookup = <String, Map<String, dynamic>>{
-        for (var c in customers) c['id'] as String: Map<String, dynamic>.from(c),
+        for (var c in customers)
+          c['id'] as String: Map<String, dynamic>.from(c),
       };
 
       final paidByItem = _paidByItem(payments);
@@ -100,7 +119,8 @@ class DashboardService {
         if (remaining <= 0) continue;
 
         final customerId = item['customer_id'] as String;
-        balanceByCustomer[customerId] = (balanceByCustomer[customerId] ?? 0) + remaining;
+        balanceByCustomer[customerId] =
+            (balanceByCustomer[customerId] ?? 0) + remaining;
 
         final createdAt = DateTime.parse(item['created_at']);
         final days = now.difference(createdAt).inDays;
@@ -122,18 +142,20 @@ class DashboardService {
       }).toList();
 
       // --- Aging report: balance × days overdue, "who to chase first" ---
-      final aging = balanceByCustomer.entries.map((e) {
-        final days = oldestUnpaidDaysByCustomer[e.key] ?? 0;
-        return {
-          'customerId': e.key,
-          'name': customerLookup[e.key]?['name'] ?? 'Unknown',
-          'balance': e.value,
-          'daysOverdue': days,
-          'score': e.value * days,
-          'customer': customerLookup[e.key],
-        };
-      }).toList()
-        ..sort((a, b) => (b['score'] as double).compareTo(a['score'] as double));
+      final aging =
+          balanceByCustomer.entries.map((e) {
+            final days = oldestUnpaidDaysByCustomer[e.key] ?? 0;
+            return {
+              'customerId': e.key,
+              'name': customerLookup[e.key]?['name'] ?? 'Unknown',
+              'balance': e.value,
+              'daysOverdue': days,
+              'score': e.value * days,
+              'customer': customerLookup[e.key],
+            };
+          }).toList()..sort(
+            (a, b) => (b['score'] as double).compareTo(a['score'] as double),
+          );
       final agingTop = aging.take(10).toList();
 
       // --- Collected this week / month ---
@@ -149,7 +171,9 @@ class DashboardService {
       }
 
       // --- Average days to fully pay off an item (only fully-paid items) ---
-      final paidItems = borrowItems.where((i) => i['is_paid'] == true && i['paid_at'] != null);
+      final paidItems = borrowItems.where(
+        (i) => i['is_paid'] == true && i['paid_at'] != null,
+      );
       double totalDays = 0;
       int paidCount = 0;
       for (var item in paidItems) {
