@@ -25,7 +25,7 @@ class _AddCustomerScreenState
         loading = true;
       });
 
-      await CustomerService().addCustomer(
+      final queuedOffline = await CustomerService().addCustomer(
         name: nameController.text,
         phone: phoneController.text,
         location: locationController.text,
@@ -34,7 +34,7 @@ class _AddCustomerScreenState
 
       if (!mounted) return;
 
-      Navigator.pop(context, true);
+      Navigator.pop(context, queuedOffline ? 'queued' : true);
 
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

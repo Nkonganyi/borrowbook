@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../services/customer_service.dart';
 import '../services/dashboard_service.dart';
 import '../services/borrow_service.dart';
+import '../widgets/offline_banner.dart';
 import 'add_customer_screen.dart';
 import 'customer_details_screen.dart';
 import 'login_screen.dart';
@@ -14,12 +15,16 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+enum CustomerFilter { all, owing, overdue, paidOff }
+
 class _HomeScreenState extends State<HomeScreen> {
   List customers = [];
   Map<String, dynamic> stats = {};
   Map<String, int> overdueDaysMap = {}; // Maps customerId to overdue days
+  Set<String> owingCustomerIds = {}; // customerIds with at least one unpaid item
   String searchText = '';
   String userName = 'Loading...';
+  CustomerFilter activeFilter = CustomerFilter.all;
 
   @override
   void initState() {
@@ -58,14 +63,17 @@ class _HomeScreenState extends State<HomeScreen> {
     final unpaidItems = await BorrowService().getAllUnpaidItems();
 
     Map<String, int> overdueMap = {};
+    Set<String> owingIds = {};
     final now = DateTime.now();
 
     for (var item in unpaidItems) {
+      final customerId = item['customer_id'];
+      owingIds.add(customerId);
+
       final createdAt = DateTime.parse(item['created_at']);
       final difference = now.difference(createdAt).inDays;
 
       if (difference >= 7) {
-        final customerId = item['customer_id'];
         if (!overdueMap.containsKey(customerId) || difference > overdueMap[customerId]!) {
           overdueMap[customerId] = difference;
         }
@@ -76,6 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         customers = customerData;
         overdueDaysMap = overdueMap;
+        owingCustomerIds = owingIds;
       });
     }
   }
@@ -127,6 +136,45 @@ class _HomeScreenState extends State<HomeScreen> {
     return val.toString();
   }
 
+  List get filteredCustomers {
+    return customers.where((customer) {
+      final customerId = customer['id'];
+      final name = (customer['name'] ?? '').toString().toLowerCase();
+      final phone = (customer['phone'] ?? '').toString().toLowerCase();
+      final matchesSearch = searchText.isEmpty ||
+          name.contains(searchText) ||
+          phone.contains(searchText);
+
+      if (!matchesSearch) return false;
+
+      switch (activeFilter) {
+        case CustomerFilter.owing:
+          return owingCustomerIds.contains(customerId);
+        case CustomerFilter.overdue:
+          return overdueDaysMap.containsKey(customerId);
+        case CustomerFilter.paidOff:
+          return !owingCustomerIds.contains(customerId);
+        case CustomerFilter.all:
+          return true;
+      }
+    }).toList();
+  }
+
+  Widget _buildFilterChip(String label, CustomerFilter filter) {
+    final isSelected = activeFilter == filter;
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) => setState(() => activeFilter = filter),
+      selectedColor: Colors.blue.shade100,
+      checkmarkColor: Colors.blue.shade900,
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.blue.shade900 : null,
+        fontWeight: isSelected ? FontWeight.bold : null,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -169,6 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
+          const OfflineBanner(),
           Card(
             margin: const EdgeInsets.all(10),
             elevation: 4,
@@ -212,25 +261,42 @@ class _HomeScreenState extends State<HomeScreen> {
             child: TextField(
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.search),
-                hintText: "Search customer...",
+                hintText: "Search by name or phone...",
                 border: OutlineInputBorder(),
               ),
               onChanged: (value) => setState(() => searchText = value.toLowerCase()),
             ),
           ),
           const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _buildFilterChip("All", CustomerFilter.all),
+                  const SizedBox(width: 8),
+                  _buildFilterChip("Owing", CustomerFilter.owing),
+                  const SizedBox(width: 8),
+                  _buildFilterChip("Overdue", CustomerFilter.overdue),
+                  const SizedBox(width: 8),
+                  _buildFilterChip("Paid off", CustomerFilter.paidOff),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
           Expanded(
-            child: ListView.builder(
-              itemCount: customers.length,
+            child: filteredCustomers.isEmpty
+                ? const Center(child: Text("No customers match this search/filter"))
+                : ListView.builder(
+              itemCount: filteredCustomers.length,
               itemBuilder: (context, index) {
-                final customer = customers[index];
+                final customer = filteredCustomers[index];
                 final customerId = customer['id'];
                 final overdueDays = overdueDaysMap[customerId];
                 final isOverdue = overdueDays != null;
-
-                if (!customer['name'].toString().toLowerCase().contains(searchText)) {
-                  return const SizedBox();
-                }
 
                 return ListTile(
                   title: Row(
@@ -242,6 +308,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           fontWeight: isOverdue ? FontWeight.bold : null,
                         ),
                       ),
+                      if (customer['_pendingSync'] == true) ...[
+                        const SizedBox(width: 6),
+                        Icon(Icons.sync, size: 14, color: Colors.orange.shade700),
+                      ],
                       if (isOverdue) ...[
                         const SizedBox(width: 8),
                         Text(
@@ -279,8 +349,16 @@ class _HomeScreenState extends State<HomeScreen> {
               builder: (_) => const AddCustomerScreen(),
             ),
           );
-          if (result == true) {
+          if (result == true || result == 'queued') {
             loadData();
+          }
+          if (result == 'queued' && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("No internet — customer saved on this device and will sync automatically once you're back online."),
+                duration: Duration(seconds: 4),
+              ),
+            );
           }
         },
       ),

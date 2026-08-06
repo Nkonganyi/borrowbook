@@ -1,8 +1,11 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/payment_model.dart';
 import 'notification_service.dart';
+import 'connectivity_service.dart';
+import 'local_cache_service.dart';
+import 'offline_queue_service.dart';
 
-/// Ledger-based payment recording (Roadmap P0.1 / groundwork for P1).
+/// Ledger-based payment recording (Roadmap P0.1 / P1.1).
 ///
 /// This is intentionally append-only: there is no updatePayment or
 /// deletePayment here on purpose (see the migration comment and P1.3 in the
@@ -14,7 +17,11 @@ class PaymentService {
   /// Records a payment against a specific borrow item and pushes a
   /// notification to the other sellers, same pattern as
   /// BorrowService.markAsPaid.
-  Future<Payment> addPayment({
+  ///
+  /// Returns true if the payment was queued for later sync (no internet
+  /// right now — the amount is still recorded locally and will reach the
+  /// server once back online), false if it reached Supabase immediately.
+  Future<bool> addPayment({
     required String customerId,
     String? borrowItemId,
     required double amount,
@@ -24,39 +31,87 @@ class PaymentService {
     String? customerName,
     String? itemName,
   }) async {
-    final row = await supabase
-        .from('payments')
-        .insert({
-          'customer_id': customerId,
-          'borrow_item_id': borrowItemId,
-          'amount': amount,
-          'paid_by': paidBy,
-          'method': method,
-          'note': note,
-        })
-        .select()
-        .single();
+    final data = {
+      'customer_id': customerId,
+      'borrow_item_id': borrowItemId,
+      'amount': amount,
+      'paid_by': paidBy,
+      'method': method,
+      'note': note,
+    };
 
-    final payment = Payment.fromJson(row);
+    final notifyTitle = '💰 Payment Recorded';
+    final notifyBody =
+        '$paidBy recorded ${amount.toStringAsFixed(0)} FCFA from ${customerName ?? "a customer"}'
+        '${itemName != null ? " for $itemName" : ""}';
 
-    await NotificationService().sendPushNotification(
-      title: '💰 Payment Recorded',
-      body:
-          '${paidBy} recorded ${amount.toStringAsFixed(0)} FCFA from ${customerName ?? "a customer"}'
-          '${itemName != null ? " for $itemName" : ""}',
+    final online = await ConnectivityService().isOnline();
+    if (online) {
+      try {
+        await supabase.from('payments').insert(data).timeout(const Duration(seconds: 10));
+        await NotificationService().sendPushNotification(title: notifyTitle, body: notifyBody);
+        await _refreshCustomerCache(customerId);
+        return false;
+      } catch (_) {
+        // fall through to queue
+      }
+    }
+
+    await OfflineQueueService().enqueue(
+      table: 'payments',
+      action: 'insert',
+      data: data,
+      notifyTitle: notifyTitle,
+      notifyBody: notifyBody,
     );
 
-    return payment;
+    // Optimistic local cache update — the payment shows up in the
+    // Payment History tab and in "paid so far" calculations right away.
+    final cacheKey = 'payments_cache_$customerId';
+    await LocalCacheService().prependToList(cacheKey, {
+      'id': 'local-${DateTime.now().microsecondsSinceEpoch}',
+      'customer_id': customerId,
+      'borrow_item_id': borrowItemId,
+      'amount': amount,
+      'paid_by': paidBy,
+      'method': method,
+      'note': note,
+      'created_at': DateTime.now().toIso8601String(),
+      '_pendingSync': true,
+    });
+
+    return true;
+  }
+
+  Future<void> _refreshCustomerCache(String customerId) async {
+    // Best-effort refresh so the cache doesn't go stale after a
+    // successful online write; not critical if it fails.
+    try {
+      await getPaymentsForCustomer(customerId);
+    } catch (_) {}
   }
 
   /// Full payment history for a customer, most recent first.
   Future<List<Payment>> getPaymentsForCustomer(String customerId) async {
-    final data = await supabase
-        .from('payments')
-        .select()
-        .eq('customer_id', customerId)
-        .order('created_at', ascending: false);
-    return (data as List).map((row) => Payment.fromJson(row)).toList();
+    final cacheKey = 'payments_cache_$customerId';
+    try {
+      final data = await supabase
+          .from('payments')
+          .select()
+          .eq('customer_id', customerId)
+          .order('created_at', ascending: false)
+          .timeout(const Duration(seconds: 8));
+
+      final rows = List<Map<String, dynamic>>.from(data);
+      await LocalCacheService().saveList(cacheKey, rows);
+      return rows.map((row) => Payment.fromJson(row)).toList();
+    } catch (_) {
+      final cached = await LocalCacheService().loadList(cacheKey);
+      if (cached == null) return [];
+      // Locally-queued rows use a placeholder amount type that's already
+      // a double/num from Dart, same as Payment.fromJson expects.
+      return cached.map((row) => Payment.fromJson(row)).toList();
+    }
   }
 
   /// Payment history for a single borrow item, most recent first.

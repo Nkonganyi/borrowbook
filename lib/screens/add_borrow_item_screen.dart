@@ -99,13 +99,13 @@ class _AddBorrowItemScreenState extends State<AddBorrowItemScreen> {
     }
 
     try {
-      await BorrowService().addBorrowItems(
+      final queuedOffline = await BorrowService().addBorrowItems(
         itemsToInsert,
         customerName: widget.customerName,
         addedBy: nameToUse,
       );
       if (!mounted) return;
-      Navigator.pop(context, true);
+      Navigator.pop(context, queuedOffline ? 'queued' : true);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString())),
